@@ -1,1 +1,139 @@
-<center><h1>Wicked Tide</h1></center>
+<body>
+  <div class="centered">
+  <h1><a href="https://wickedtide.com">WickedTide.com</a> Beta</h1>
+  <div id="output">...</div>
+  </div>
+
+
+   <div class="libleft" id="info">
+   👨‍💻 <a href="http://cwmoriarty.com">cwmoriarty.com</a><br><br>
+   </div>
+
+
+  <script>
+    const ones = ['','one','two','three','four','five','six','seven','eight','nine',
+                  'ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen',
+                  'seventeen','eighteen','nineteen'];
+    const tens = ['','','twenty','thirty','forty','fifty'];
+
+    function numToWords(n) {
+      if (n < 20) return ones[n];
+      const t = Math.floor(n / 10), o = n % 10;
+      return o === 0 ? tens[t] : tens[t] + '-' + ones[o];
+    }
+
+    function relativePhrase(diffMs) {
+      const halfHours  = Math.round(diffMs / 60000 / 30);
+      const wholeHours = Math.floor(halfHours / 2);
+      const hasHalf    = halfHours % 2 === 1;
+      if (halfHours <= 0)  return 'right now';
+      if (halfHours === 1) return 'half an hour';
+      if (wholeHours === 0) return 'half an hour';
+      if (!hasHalf) return numToWords(wholeHours) + ' hour' + (wholeHours === 1 ? '' : 's');
+      return numToWords(wholeHours) + ' and a half hours';
+    }
+
+    function syntheticTideHeight(ms) {
+      const t  = ms / 1000;
+      const M2 = 2 * Math.PI / (12.4206012 * 3600);
+      const S2 = 2 * Math.PI / (12.0       * 3600);
+      const N2 = 2 * Math.PI / (12.6583482 * 3600);
+      const K1 = 2 * Math.PI / (23.9344697 * 3600);
+      const O1 = 2 * Math.PI / (25.8193417 * 3600);
+      return 0.65*Math.cos(M2*t) + 0.15*Math.cos(S2*t) + 0.12*Math.cos(N2*t)
+           + 0.10*Math.cos(K1*t) + 0.08*Math.cos(O1*t);
+    }
+
+    function nextExtremum(fromMs) {
+      const step = 6 * 60 * 1000;
+      let prev = syntheticTideHeight(fromMs - step);
+      let cur  = syntheticTideHeight(fromMs);
+      let t    = fromMs;
+      while (true) {
+        t += step;
+        const next = syntheticTideHeight(t + step);
+        if ((cur - prev) * (next - cur) < 0) {
+          let lo = t - step, hi = t + step;
+          for (let i = 0; i < 12; i++) {
+            const mid = (lo + hi) / 2;
+            const hLo = syntheticTideHeight(lo), hMid = syntheticTideHeight(mid);
+            if ((syntheticTideHeight(lo+1)-hLo)*(syntheticTideHeight(mid+1)-hMid) < 0) hi = mid;
+            else lo = mid;
+          }
+          const tX = (lo + hi) / 2;
+          return { ms: tX, type: syntheticTideHeight(tX) > 0 ? 'high' : 'low' };
+        }
+        prev = cur; cur = next;
+      }
+    }
+
+    function render() {
+      const now  = Date.now();
+      const ext  = nextExtremum(now);
+      const diff = ext.ms - now;
+      const el   = document.getElementById('output');
+      if (diff < 60000) {
+        el.textContent = 'The tide is wicked ' + ext.type + '!';
+      } else {
+        el.textContent = 'In  ' + relativePhrase(diff) + ' the tide will be wicked ' + ext.type + '.';
+      }
+    }
+
+    (async () => {
+      async function tryIpApi() {
+        const d = await fetch('https://ipapi.co/json').then(r => r.json());
+        if (!d.latitude || d.error) throw new Error('ipapi failed');
+        return d;
+      }
+      async function tryIpWho() {
+        const d = await fetch('https://ipwho.is/').then(r => r.json());
+        if (!d.latitude || !d.success) throw new Error('ipwho failed');
+        return d;
+      }
+      try {
+        let geo;
+        try { geo = await tryIpApi(); } catch (_) { geo = await tryIpWho(); }
+        // lat/lon available if needed for future localisation
+      } catch (e) { console.warn('Location failed, using default', e); }
+
+      render();
+      setInterval(render, 30000);
+    })();
+  </script>
+</body>
+
+<style type="text/css">
+    body { font-family: Helvetica, Geneva, sans-serif; }
+    a { color: black; }
+    li { list-style-type: none; padding-left: 20px}
+
+.centered {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 50%;
+  height: 50%;
+  font-size: calc(1vw + 1vh);
+  /*border: 1px solid black*/;
+}
+.centered h1
+{ 
+  font-size: calc(2vw + 2vh);
+}
+
+
+@media (max-width: 768px) {
+  .centered {
+    width: 50%;
+    height: 50%;
+    font-size: calc(2vw + 2vh);
+  }
+}
+
+.libleft {
+          position: fixed;
+          left:10; 
+          bottom:10;
+        }
+        </style>
